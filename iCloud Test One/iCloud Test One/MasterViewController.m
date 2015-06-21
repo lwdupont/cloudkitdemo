@@ -26,6 +26,12 @@
 	UIBarButtonItem *addButton = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemAdd target:self action:@selector(insertNewObject:)];
 	self.navigationItem.rightBarButtonItem = addButton;
 	self.detailViewController = (DetailViewController *)[[self.splitViewController.viewControllers lastObject] topViewController];
+	
+	if (!self.objects) {
+		self.objects = [[NSMutableArray alloc] init];
+	}
+	
+	[self retrieveRecordsFromCloudKit];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -45,12 +51,16 @@
 	
 	NSDate *dateToSave = [NSDate date];
 	
-	[self.objects insertObject:dateToSave atIndex:0];
-	NSIndexPath *indexPath = [NSIndexPath indexPathForRow:0 inSection:0];
-	[self.tableView insertRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
-	
+	[self insertDateIntoTable:dateToSave];
 	
 	[self saveRecordToCloudKit:dateToSave];
+}
+
+- (void) insertDateIntoTable: (NSDate *) dateToInsert
+{
+	[self.objects insertObject:dateToInsert atIndex:0];
+	NSIndexPath *indexPath = [NSIndexPath indexPathForRow:0 inSection:0];
+	[self.tableView insertRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
 }
 
 
@@ -89,6 +99,41 @@
 		}
 	}];
 	
+}
+
+
+- (void) retrieveRecordsFromCloudKit
+{
+	
+	// let's load in the records saved in CloudKit with my userName
+	CKContainer *myContainer = [CKContainer defaultContainer];
+	CKDatabase *publicDatabase = [myContainer publicCloudDatabase];
+
+	// create the predicate that we want to search with
+	NSPredicate *predicate = [NSPredicate predicateWithFormat:@"userName = %@", @"Lucien"];
+	
+	// create the CKQuery
+	CKQuery *queryToPerform = [[CKQuery alloc] initWithRecordType:@"TimeEntries" predicate:predicate];
+	
+	// and perform the CKQuery
+	[publicDatabase performQuery:queryToPerform inZoneWithID:nil completionHandler:^(NSArray<CKRecord *> * __nullable results, NSError * __nullable error) {
+		
+		if (error)
+		{
+			NSLog(@"error happened fetching records: %@", error);
+		}
+		else
+		{
+			for (CKRecord *currentRecord in results) {
+				
+				NSDate *date = [currentRecord objectForKey:@"date"];
+				
+				[self performSelectorOnMainThread:@selector(insertDateIntoTable:) withObject:date waitUntilDone:YES];
+			}
+			
+		}
+	}];
+
 }
 
 
